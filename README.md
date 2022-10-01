@@ -1,2 +1,2 @@
 # PRoofreader
-Automated language correction through Git
+Automated proofreading through Git

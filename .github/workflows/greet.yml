@@ -7,7 +7,7 @@ jobs:
     steps:
       - name: Hello world action step
         id: hello
-        uses: siberov/PRoofreader@v0.1
+        uses: siberov/PRoofreader@hello-action
         with:
           who-to-greet: 'Molly Ostberg'
       - name: Get the output time

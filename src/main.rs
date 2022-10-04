@@ -1,5 +1,7 @@
 use reqwest;
 
+mod language_tool_models;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let language = "en";
@@ -11,7 +13,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .body(input)
         .send()
         .await;
+    let json: language_tool_models::check_response = result?.json().await?;
 
-    println!("{:?}", result?.text().await?);
+    println!("{:?}", json.software.ok_or("error"));
     Ok(())
 }

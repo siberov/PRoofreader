@@ -1,1 +1,0 @@
-And i was a littel man, genuine about the interest of my mind and had a daughter. I followed there track over to the abyss and let them know i love them. 

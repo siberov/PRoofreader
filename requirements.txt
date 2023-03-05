@@ -1,0 +1,6 @@
+PyGithub
+pytest
+pytest-mock
+coverage
+python-dotenv
+requests

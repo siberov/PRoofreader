@@ -1,7 +1,7 @@
 import logging
+import os
 import json
 import requests
-from github import Github
 
 def foo():
     return 2
@@ -17,6 +17,8 @@ class Proofreader:
         self.owner = owner
         self.repo = repo
         self.pull_number = pull_number
+        self.chatgpt_system_command = "You are a proofreader helping to improve the README.md file for a GitHub repository. You are given a paragraph from the README.md file and asked to write a better version of it. The README.md file is written in Markdown. You can use Markdown syntax to format your text."
+        self.chatgpt_user_message_intro = "Help me improve the following paragraph. Answer with your improvements, followed by the special token <###> on a separate line, followed by a brief explanation of what you have changed. Only make suggestions if you find obvious improvements. If you don't find any, reply '###NO_SUGGESTION###'. The paragraph is as follows:"
 
     def get_user(self) -> str:
         return self.g.get_user().login
@@ -59,8 +61,117 @@ class Proofreader:
             "side": "RIGHT",
             "commit_id": self._get_latest_commit_sha()
         }
-        # response = requests.post(url, headers=self.headers, data=json.dumps(body))
-        # logging.info(response.json())
-        # print(response.json())
-        # logging.info(response.status_code)
-        # print(response.status_code)
+        response = requests.post(url, headers=self.headers, data=json.dumps(body))
+        logging.info(response.json())
+        print(response.json())
+        logging.info(response.status_code)
+        print(response.status_code)
+
+    def preprocess(self, readme: str):
+        """Preprocesses the README.md file to make it easier to parse.
+        Split the readme into paragraphs and treat the code blocks as paragraphs.
+        Save start and end line numbers for each paragraph.
+        """
+        paragraphs = []
+        current_paragraph = ""
+        current_line = 0
+        current_paragraph_start = 0
+        for line in readme.splitlines():
+            current_line += 1
+            if line.startswith("#"):
+                paragraphs.append(
+                        {
+                        "start": current_line,
+                        "end": current_line, 
+                        "text": line
+                        }
+                    )
+            else:
+                # new paragraph
+                if current_paragraph == "":
+                    current_paragraph_start = current_line
+                    current_paragraph += line + "\n"
+                # end of paragraph
+                elif line == "" and current_paragraph:
+                    paragraphs.append(
+                        {
+                            "start": current_paragraph_start, 
+                            "end": current_line, 
+                            "text": current_paragraph
+                            }
+                        )
+                    current_paragraph = ""
+                else:
+                    current_paragraph += line + "\n"
+        # Edge case for last paragraph if it does not end in new line
+        if current_paragraph:
+            paragraphs.append(
+                    {
+                    "start": current_paragraph_start, 
+                    "end": current_line, 
+                    "text": current_paragraph
+                    }
+                )
+        return paragraphs
+    
+    def make_corrections(self, processed_readme):
+        """Makes corrections to the README.md file.
+        processed_readme: list of paragraphs
+        """
+        corrected_readme = []
+        # Iterate through the paragraphs, and make an API call to ChatGPT for each one
+        # Save the suggestions in corrected_readme
+        for paragraph in processed_readme:
+            suggestion, motivation = self._get_suggestion(paragraph["text"])
+            if suggestion == "###NO_SUGGESTION###":
+                continue
+            corrected_readme.append({
+                "start": paragraph["start"],
+                "end": paragraph["end"],
+                "text": suggestion,
+                "motivation": motivation
+                })
+        return corrected_readme
+
+    def _get_suggestion(self, paragraph: str) -> str:
+        """Makes an API call to ChatGPT to get a suggestion for the paragraph.
+        paragraph: the paragraph to get a suggestion for
+        """
+        api_key = os.getenv('OPENAI_API_KEY')
+        url = "https://api.openai.com/v1/chat/completions"
+
+        headers = {
+            "Authorization": "Bearer " + api_key,
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": self.chatgpt_system_command
+                },
+                {
+                    "role": "user",
+                    "content": self.chatgpt_user_message_intro + "\n" + paragraph
+                }
+            ]
+        }
+        print("Asking for improvement on: " + paragraph)
+        response = requests.post(url, headers=headers, json=data)
+        print("Got response: " + response.json()["choices"][0]["message"]["content"])
+        # Todo: Handle error response
+        suggestion = response.json()["choices"][0]["message"]["content"]
+        if "<###>" in suggestion:
+            return suggestion.split("<###>")[0], suggestion.split("<###>")[1]
+        else:
+            return "###NO_SUGGESTION###", "###NO_SUGGESTION###"
+    
+    def test_readme(self, readme):
+        preprocessed = self.preprocess(readme)
+        corrected = self.make_corrections(preprocessed)
+        print(corrected)
+
+
+
